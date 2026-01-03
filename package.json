@@ -1,27 +1,40 @@
 {
-  "name": "taffy-layout",
+  "name": "yoga-layout-taffy",
   "version": "0.1.0",
-  "description": "Blazing fast Flexbox and CSS Grid layout engine powered by Rust and WebAssembly",
+  "description": "Yoga-compatible layout engine powered by Taffy (Rust/WASM)",
   "keywords": [
-    "taffy",
     "yoga",
-    "layout"
+    "taffy",
+    "layout",
+    "flexbox"
   ],
-  "homepage": "https://github.com/ByteLandTechnology/taffy-layout#readme",
+  "homepage": "https://github.com/ByteLandTechnology/yoga-layout-taffy#readme",
   "bugs": {
-    "url": "https://github.com/ByteLandTechnology/taffy-layout/issues"
+    "url": "https://github.com/ByteLandTechnology/yoga-layout-taffy/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ByteLandTechnology/taffy-layout.git"
+    "url": "git+https://github.com/ByteLandTechnology/yoga-layout-taffy.git"
   },
   "license": "MIT",
   "author": "ByteLandTechnology",
   "type": "module",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./load": "./dist/load.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "build": "tsc",
     "test": "vitest run",
     "prepare": "husky"
+  },
+  "dependencies": {
+    "taffy-js": "^0.2.2"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.3.0",
@@ -29,6 +42,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.7.4",
+    "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   },
   "commitlint": {
