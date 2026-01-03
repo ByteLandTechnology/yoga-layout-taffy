@@ -1,0 +1,28 @@
+{
+  "name": "taffy-layout",
+  "version": "0.1.0",
+  "description": "Blazing fast Flexbox and CSS Grid layout engine powered by Rust and WebAssembly",
+  "keywords": [
+    "taffy",
+    "yoga",
+    "layout"
+  ],
+  "homepage": "https://github.com/ByteLandTechnology/taffy-layout#readme",
+  "bugs": {
+    "url": "https://github.com/ByteLandTechnology/taffy-layout/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ByteLandTechnology/taffy-layout.git"
+  },
+  "license": "MIT",
+  "author": "ByteLandTechnology",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.16"
+  }
+}
