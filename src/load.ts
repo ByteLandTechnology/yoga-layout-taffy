@@ -1,7 +1,7 @@
-import * as Taffy from "taffy-js";
 import { Node } from "./Node.js";
 import { Config } from "./Config.js";
 import { Constants } from "./enums.js";
+import { initTaffy } from "./init.js";
 
 /**
  * Asynchronously loads the WASM module and returns the Yoga interface.
@@ -9,7 +9,7 @@ import { Constants } from "./enums.js";
  * @returns A promise that resolves to the Yoga namespace.
  */
 async function loadYoga() {
-  await Taffy.default();
+  await initTaffy();
 
   const Yoga = {
     Node,

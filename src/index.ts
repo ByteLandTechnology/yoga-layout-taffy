@@ -1,9 +1,9 @@
-import * as Taffy from "taffy-js";
 import { Node } from "./Node.js";
 import { Config } from "./Config.js";
 import { Constants } from "./enums.js";
+import { initTaffy } from "./init.js";
 
-await Taffy.default();
+await initTaffy();
 
 const Yoga = {
   Node,

@@ -26,6 +26,14 @@ export type Size = {
 };
 
 /**
+ * Represents a value with a unit.
+ */
+export type Value = {
+  unit: Unit;
+  value: number;
+};
+
+/**
  * Function type for custom measurement logic.
  * Used to calculate the size of leaf nodes (like text) based on available space.
  *
@@ -97,6 +105,14 @@ export class Node {
    * Used for dirty state propagation.
    */
   private parent: Node | null = null;
+
+  /**
+   * Gets the parent node.
+   * @returns The parent node or null.
+   */
+  getParent(): Node | null {
+    return this.parent;
+  }
 
   /**
    * Custom function to measure the node's dimensions.
@@ -356,9 +372,9 @@ export class Node {
    * Sets the flex grow factor.
    * @param flexGrow - The growth factor (>= 0).
    */
-  setFlexGrow(flexGrow: number) {
+  setFlexGrow(flexGrow: number | undefined): void {
     this.updateStyle((s) => {
-      s.flex_grow = flexGrow;
+      s.flex_grow = flexGrow ?? 0;
     });
   }
 
@@ -366,9 +382,9 @@ export class Node {
    * Sets the flex shrink factor.
    * @param flexShrink - The shrink factor (>= 0).
    */
-  setFlexShrink(flexShrink: number) {
+  setFlexShrink(flexShrink: number | undefined): void {
     this.updateStyle((s) => {
-      s.flex_shrink = flexShrink;
+      s.flex_shrink = flexShrink ?? 0;
     });
   }
 
@@ -376,9 +392,9 @@ export class Node {
    * Sets the flex basis (initial main size).
    * @param flexBasis - The size (number for points, string for %, or 'auto').
    */
-  setFlexBasis(flexBasis: number | string) {
+  setFlexBasis(flexBasis: number | "auto" | `${number}%` | undefined): void {
     this.updateStyle((s) => {
-      s.flex_basis = this.parseValue(flexBasis);
+      s.flex_basis = this.parseValue(flexBasis ?? "auto");
     });
   }
 
@@ -386,9 +402,10 @@ export class Node {
    * Sets the flex basis as a percentage.
    * @param flexBasis - Percentage value (0-100).
    */
-  setFlexBasisPercent(flexBasis: number) {
+  setFlexBasisPercent(flexBasis: number | undefined): void {
     this.updateStyle((s) => {
-      s.flex_basis = { Percent: flexBasis / 100.0 }; // Yoga uses 0-100 for percent args usually? Or 0-1?
+      s.flex_basis =
+        flexBasis !== undefined ? { Percent: flexBasis / 100.0 } : "Auto"; // Yoga uses 0-100 for percent args usually? Or 0-1?
       // Yoga API setWidth("50%") is common. setWidthPercent(50) -> usually means 50%.
       // Taffy takes 0.0-1.0.
     });
@@ -397,10 +414,21 @@ export class Node {
   /**
    * Sets flex basis to 'auto'.
    */
-  setFlexBasisAuto() {
+  setFlexBasisAuto(): void {
     this.updateStyle((s) => {
       s.flex_basis = "Auto";
     });
+  }
+
+  /**
+   * Sets the flex property.
+   * In Yoga, this acts as a shorthand that sets flexGrow = flex, flexShrink = 1, and flexBasis = 0.
+   * @param flex - The flex value.
+   */
+  setFlex(flex: number | undefined): void {
+    this.setFlexGrow(flex ?? 0);
+    this.setFlexShrink(1);
+    this.setFlexBasis(0);
   }
 
   /**
@@ -443,6 +471,98 @@ export class Node {
    */
   setAlwaysFormsContainingBlock(alwaysFormsContainingBlock: boolean) {
     // Not supported in Taffy yet
+  }
+
+  // --- Dimensions Getters ---
+
+  /**
+   * Converts a Taffy style value to a Yoga-compatible Value object.
+   * @param val - The Taffy value to convert.
+   * @returns A Value object with unit and value.
+   */
+  private getTypeFromTaffyValue(val: any): Value {
+    if (val === "Auto") {
+      return { unit: Unit.Auto, value: NaN };
+    }
+    if (typeof val === "object") {
+      if ("Length" in val) return { unit: Unit.Point, value: val.Length };
+      if ("Percent" in val)
+        return { unit: Unit.Percent, value: val.Percent * 100 };
+    }
+    return { unit: Unit.Undefined, value: NaN };
+  }
+
+  /**
+   * Parses a raw value (number, string, or undefined) into a Value object.
+   * @param val - The value to parse.
+   * @returns A Value object with unit and value.
+   */
+  private parseToValue(val: number | string | undefined): Value {
+    if (val === undefined) return { unit: Unit.Undefined, value: NaN };
+    if (val === "auto") return { unit: Unit.Auto, value: NaN };
+    if (typeof val === "number") return { unit: Unit.Point, value: val };
+    if (typeof val === "string") {
+      if (val.endsWith("%")) {
+        return { unit: Unit.Percent, value: parseFloat(val) };
+      }
+      const num = parseFloat(val);
+      if (!isNaN(num)) return { unit: Unit.Point, value: num };
+    }
+    return { unit: Unit.Undefined, value: NaN };
+  }
+
+  /**
+   * Gets the width of the node.
+   * @returns The width as a Value object.
+   */
+  getWidth(): Value {
+    const style = this.tree.getStyle(this.id);
+    return this.getTypeFromTaffyValue(style.size.width);
+  }
+
+  /**
+   * Gets the height of the node.
+   * @returns The height as a Value object.
+   */
+  getHeight(): Value {
+    const style = this.tree.getStyle(this.id);
+    return this.getTypeFromTaffyValue(style.size.height);
+  }
+
+  /**
+   * Gets the minimum width of the node.
+   * @returns The minimum width as a Value object.
+   */
+  getMinWidth(): Value {
+    const style = this.tree.getStyle(this.id);
+    return this.getTypeFromTaffyValue(style.min_size.width);
+  }
+
+  /**
+   * Gets the minimum height of the node.
+   * @returns The minimum height as a Value object.
+   */
+  getMinHeight(): Value {
+    const style = this.tree.getStyle(this.id);
+    return this.getTypeFromTaffyValue(style.min_size.height);
+  }
+
+  /**
+   * Gets the maximum width of the node.
+   * @returns The maximum width as a Value object.
+   */
+  getMaxWidth(): Value {
+    const style = this.tree.getStyle(this.id);
+    return this.getTypeFromTaffyValue(style.max_size.width);
+  }
+
+  /**
+   * Gets the maximum height of the node.
+   * @returns The maximum height as a Value object.
+   */
+  getMaxHeight(): Value {
+    const style = this.tree.getStyle(this.id);
+    return this.getTypeFromTaffyValue(style.max_size.height);
   }
 
   // Dimension & Rect Setters Helper
@@ -614,10 +734,13 @@ export class Node {
   /**
    * Sets a position value for a specific edge.
    * @param edge - The edge to set.
-   * @param value - The value (number, percentage string, or "auto").
+   * @param position - The value (number, percentage string, or undefined).
    */
-  setPosition(edge: Edge, value: number | string) {
-    const val = this.parseValue(value);
+  setPosition(
+    edge: Edge,
+    position: number | "auto" | `${number}%` | undefined,
+  ): void {
+    const val = this.parseValue(position ?? "auto");
 
     // Fan out to specific edges in cache
     if (edge === Edge.All) {
@@ -645,17 +768,17 @@ export class Node {
   /**
    * Sets a position value as a percentage.
    * @param edge - The edge to set.
-   * @param value - The percentage value.
+   * @param position - The percentage value.
    */
-  setPositionPercent(edge: Edge, value: number) {
-    this.setPosition(edge, `${value}%`);
+  setPositionPercent(edge: Edge, position: number | undefined): void {
+    this.setPosition(edge, position !== undefined ? `${position}%` : undefined);
   }
 
   /**
    * Sets a position value to "auto".
    * @param edge - The edge to set.
    */
-  setPositionAuto(edge: Edge) {
+  setPositionAuto(edge: Edge): void {
     this.setPosition(edge, "auto");
   }
 
@@ -689,36 +812,24 @@ export class Node {
   /**
    * Gets the position value for a specific edge.
    * @param edge - The edge to retrieve.
-   * @returns The position value (Length object, Percent object, or Auto).
+   * @returns The position value.
    */
-  getPosition(edge: Edge): any {
-    // Read the actual value from Taffy
-    const style = this.tree.getStyle(this.id);
-    const inset = style.inset;
-
-    // Map Yoga Edge enum to Taffy inset property
-    switch (edge) {
-      case Edge.Left:
-        return inset.left;
-      case Edge.Right:
-        return inset.right;
-      case Edge.Top:
-        return inset.top;
-      case Edge.Bottom:
-        return inset.bottom;
-      case Edge.Start:
-        // For logical edges, map to physical based on current direction
-        return inset.left; // Simplified; could check text direction
-      case Edge.End:
-        return inset.right;
-      case Edge.Horizontal:
-      case Edge.Vertical:
-      case Edge.All:
-        // For compound edges, return left as representative
-        return inset.left;
-      default:
-        return inset.left;
+  getPosition(edge: Edge): Value {
+    // Return from cache to preserve logical edges and exact values
+    if (
+      edge === Edge.All ||
+      edge === Edge.Horizontal ||
+      edge === Edge.Vertical
+    ) {
+      // Yoga getters for compound edges usually return Undefined or specific logic?
+      // Typically people get specific edges. We'll return Left as a proxy or Undefined.
+      // Assuming we return what's in cache for that key (which might be used for 'all' setting).
+      // Our cache fans out 'All' to all edges, so 'All' key itself might be undefined in cache if we only implemented fan-out?
+      // Looking at setPosition, we only set specific edges in `insets`. We don't store 'All'.
+      // So getting 'All' will likely return Undefined.
+      return { unit: Unit.Undefined, value: NaN };
     }
+    return this.parseToValue(this._styleCache.insets[edge]);
   }
 
   // --- Margin ---
@@ -726,11 +837,14 @@ export class Node {
   /**
    * Sets the margin for a specific edge.
    * @param edge - The edge to set.
-   * @param value - The margin value (number, percent string, or "auto").
+   * @param margin - The margin value (number, percent string, "auto", or undefined).
    */
-  setMargin(edge: Edge, value: number | string) {
+  setMargin(
+    edge: Edge,
+    margin: number | "auto" | `${number}%` | undefined,
+  ): void {
     // Cache the margin setting (for logical edge resolution)
-    this._styleCache.margins[edge] = value;
+    this._styleCache.margins[edge] = margin;
     // Resolve and apply to Taffy based on current direction
     this.resolveMarginsToTaffy();
   }
@@ -738,17 +852,17 @@ export class Node {
   /**
    * Sets the margin for a specific edge as a percentage.
    * @param edge - The edge to set.
-   * @param value - The percentage value.
+   * @param margin - The percentage value.
    */
-  setMarginPercent(edge: Edge, value: number) {
-    this.setMargin(edge, `${value}%`);
+  setMarginPercent(edge: Edge, margin: number | undefined): void {
+    this.setMargin(edge, margin !== undefined ? `${margin}%` : undefined);
   }
 
   /**
    * Sets the margin for a specific edge to "auto".
    * @param edge - The edge to set.
    */
-  setMarginAuto(edge: Edge) {
+  setMarginAuto(edge: Edge): void {
     this.setMargin(edge, "auto");
   }
 
@@ -825,6 +939,22 @@ export class Node {
   }
 
   /**
+   * Gets the margin for a specific edge.
+   * @param edge - The edge to retrieve.
+   * @returns The margin value.
+   */
+  getMargin(edge: Edge): Value {
+    if (
+      edge === Edge.All ||
+      edge === Edge.Horizontal ||
+      edge === Edge.Vertical
+    ) {
+      return { unit: Unit.Undefined, value: NaN };
+    }
+    return this.parseToValue(this._styleCache.margins[edge]);
+  }
+
+  /**
    * Gets the computed margin for a specific edge in pixels.
    * @param edge - The edge to retrieve.
    * @returns The computed margin value.
@@ -885,11 +1015,11 @@ export class Node {
   /**
    * Sets the padding for a specific edge.
    * @param edge - The edge to set.
-   * @param value - The padding value (number or percent string).
+   * @param padding - The padding value (number, percent string, or undefined).
    */
-  setPadding(edge: Edge, value: number | string) {
+  setPadding(edge: Edge, padding: number | `${number}%` | undefined): void {
     // Cache the padding setting (for logical edge resolution)
-    this._styleCache.paddings[edge] = value;
+    this._styleCache.paddings[edge] = padding;
     // Resolve and apply to Taffy based on current direction
     this.resolvePaddingsToTaffy();
   }
@@ -897,10 +1027,10 @@ export class Node {
   /**
    * Sets the padding for a specific edge as a percentage.
    * @param edge - The edge to set.
-   * @param value - The percentage value.
+   * @param padding - The percentage value.
    */
-  setPaddingPercent(edge: Edge, value: number) {
-    this.setPadding(edge, `${value}%`);
+  setPaddingPercent(edge: Edge, padding: number | undefined): void {
+    this.setPadding(edge, padding !== undefined ? `${padding}%` : undefined);
   }
 
   // Resolve cached padding settings to physical edges and apply to Taffy
@@ -975,6 +1105,22 @@ export class Node {
   }
 
   /**
+   * Gets the padding for a specific edge.
+   * @param edge - The edge to retrieve.
+   * @returns The padding value.
+   */
+  getPadding(edge: Edge): Value {
+    if (
+      edge === Edge.All ||
+      edge === Edge.Horizontal ||
+      edge === Edge.Vertical
+    ) {
+      return { unit: Unit.Undefined, value: NaN };
+    }
+    return this.parseToValue(this._styleCache.paddings[edge]);
+  }
+
+  /**
    * Gets the computed padding for a specific edge in pixels.
    * @param edge - The edge to retrieve.
    * @returns The computed padding value.
@@ -1032,11 +1178,11 @@ export class Node {
   /**
    * Sets the border width for a specific edge.
    * @param edge - The edge to set.
-   * @param value - The border width.
+   * @param borderWidth - The border width.
    */
-  setBorder(edge: Edge, value: number) {
+  setBorder(edge: Edge, borderWidth: number | undefined): void {
     // Cache the border setting (for logical edge resolution)
-    this._styleCache.borders[edge] = value;
+    this._styleCache.borders[edge] = borderWidth;
     // Resolve and apply to Taffy based on current direction
     this.resolveBordersToTaffy();
   }
@@ -1115,6 +1261,23 @@ export class Node {
   }
 
   /**
+   * Gets the border width for a specific edge.
+   * @param edge - The edge to retrieve.
+   * @returns The border width.
+   */
+  getBorder(edge: Edge): number {
+    if (
+      edge === Edge.All ||
+      edge === Edge.Horizontal ||
+      edge === Edge.Vertical
+    ) {
+      return NaN;
+    }
+    const val = this._styleCache.borders[edge];
+    return val !== undefined ? val : NaN;
+  }
+
+  /**
    * Gets the computed border width for a specific edge in pixels.
    * @param edge - The edge to retrieve.
    * @returns The computed border width.
@@ -1169,17 +1332,39 @@ export class Node {
   /**
    * Sets the gap (gutter) between items.
    * @param gutter - The gap type (Column, Row, All).
-   * @param value - The gap size.
+   * @param gapLength - The gap size.
+   * @returns The parsed Value object.
    */
-  setGap(gutter: Gutter, value: number) {
-    const val = { Length: value };
+  setGap(gutter: Gutter, gapLength: number | `${number}%` | undefined): Value {
+    // Allowing string for compat, though Taffy Gap is length
+    // Taffy gap is Length (Points) usually.
+    const val = this.parseValue(gapLength ?? 0);
+
+    // Taffy JS Style.gap is { width: LengthPercentage | Auto, height: ... }
+    // Actually, check Taffy definitions. Taffy gap supports Length and Percent (if using Taffy Flexbox fully).
+    // Let's assume point for number.
+
     this.updateStyle((s) => {
       const current = s.gap || { width: { Length: 0 }, height: { Length: 0 } };
+      // Map to Taffy gap properties which are width (column gap) and height (row gap)
       if (gutter === Gutter.Column || gutter === Gutter.All)
         current.width = val;
       if (gutter === Gutter.Row || gutter === Gutter.All) current.height = val;
       s.gap = current;
     });
+
+    return this.parseToValue(gapLength);
+  }
+
+  /**
+   * Sets the gap as a percentage.
+   * @param gutter - The gutter type.
+   * @param gapLength - The percentage value.
+   * @returns The parsed Value object with Unit.Percent.
+   */
+  setGapPercent(gutter: Gutter, gapLength: number | undefined): Value {
+    this.setGap(gutter, gapLength !== undefined ? `${gapLength}%` : undefined);
+    return { unit: Unit.Percent, value: gapLength ?? 0 };
   }
 
   /**
@@ -1208,23 +1393,24 @@ export class Node {
    * Sets the width of the node.
    * @param width - The width (number, percentage string, or "auto").
    */
-  setWidth(width: number | string) {
+  setWidth(width: number | "auto" | `${number}%` | undefined): void {
     this.updateStyle(
-      (s) => (s.size = { ...s.size, width: this.parseValue(width) }),
+      (s) => (s.size = { ...s.size, width: this.parseValue(width ?? "auto") }),
     );
   }
+
   /**
    * Sets the width as a percentage.
    * @param width - The percentage value.
    */
-  setWidthPercent(width: number) {
-    this.setWidth(`${width}%`);
+  setWidthPercent(width: number | undefined): void {
+    this.setWidth(width !== undefined ? `${width}%` : "auto");
   }
 
   /**
    * Sets the width to "auto".
    */
-  setWidthAuto() {
+  setWidthAuto(): void {
     this.setWidth("auto");
   }
 
@@ -1232,23 +1418,25 @@ export class Node {
    * Sets the height of the node.
    * @param height - The height (number, percentage string, or "auto").
    */
-  setHeight(height: number | string) {
+  setHeight(height: number | "auto" | `${number}%` | undefined): void {
     this.updateStyle(
-      (s) => (s.size = { ...s.size, height: this.parseValue(height) }),
+      (s) =>
+        (s.size = { ...s.size, height: this.parseValue(height ?? "auto") }),
     );
   }
+
   /**
    * Sets the height as a percentage.
    * @param height - The percentage value.
    */
-  setHeightPercent(height: number) {
-    this.setHeight(`${height}%`);
+  setHeightPercent(height: number | undefined): void {
+    this.setHeight(height !== undefined ? `${height}%` : "auto");
   }
 
   /**
    * Sets the height to "auto".
    */
-  setHeightAuto() {
+  setHeightAuto(): void {
     this.setHeight("auto");
   }
 
@@ -1256,77 +1444,103 @@ export class Node {
    * Sets the minimum width.
    * @param minWidth - The minimum width.
    */
-  setMinWidth(minWidth: number | string) {
-    this.updateStyle(
-      (s) => (s.min_size = { ...s.min_size, width: this.parseValue(minWidth) }),
-    );
+  setMinWidth(minWidth: number | `${number}%` | undefined): void {
+    this.updateStyle((s) => {
+      const val =
+        minWidth === undefined
+          ? "Auto"
+          : typeof minWidth === "number"
+            ? { Length: minWidth }
+            : { Percent: parseFloat(minWidth) / 100 };
+      s.min_size = { ...s.min_size, width: val };
+    });
   }
+
   /**
    * Sets the minimum width as a percentage.
    * @param minWidth - The percentage value.
    */
-  setMinWidthPercent(minWidth: number) {
-    this.setMinWidth(`${minWidth}%`);
+  setMinWidthPercent(minWidth: number | undefined): void {
+    this.setMinWidth(minWidth !== undefined ? `${minWidth}%` : undefined);
   }
 
   /**
    * Sets the maximum width.
    * @param maxWidth - The maximum width.
    */
-  setMaxWidth(maxWidth: number | string) {
-    this.updateStyle(
-      (s) => (s.max_size = { ...s.max_size, width: this.parseValue(maxWidth) }),
-    );
+  setMaxWidth(maxWidth: number | `${number}%` | undefined): void {
+    this.updateStyle((s) => {
+      const val =
+        maxWidth === undefined
+          ? "Auto"
+          : typeof maxWidth === "number"
+            ? { Length: maxWidth }
+            : { Percent: parseFloat(maxWidth) / 100 };
+      s.max_size = { ...s.max_size, width: val };
+    });
   }
+
   /**
    * Sets the maximum width as a percentage.
    * @param maxWidth - The percentage value.
    */
-  setMaxWidthPercent(maxWidth: number) {
-    this.setMaxWidth(`${maxWidth}%`);
+  setMaxWidthPercent(maxWidth: number | undefined): void {
+    this.setMaxWidth(maxWidth !== undefined ? `${maxWidth}%` : undefined);
   }
 
   /**
    * Sets the minimum height.
    * @param minHeight - The minimum height.
    */
-  setMinHeight(minHeight: number | string) {
-    this.updateStyle(
-      (s) =>
-        (s.min_size = { ...s.min_size, height: this.parseValue(minHeight) }),
-    );
+  setMinHeight(minHeight: number | `${number}%` | undefined): void {
+    this.updateStyle((s) => {
+      const val =
+        minHeight === undefined
+          ? "Auto"
+          : typeof minHeight === "number"
+            ? { Length: minHeight }
+            : { Percent: parseFloat(minHeight) / 100 };
+      s.min_size = { ...s.min_size, height: val };
+    });
   }
+
   /**
    * Sets the minimum height as a percentage.
    * @param minHeight - The percentage value.
    */
-  setMinHeightPercent(minHeight: number) {
-    this.setMinHeight(`${minHeight}%`);
+  setMinHeightPercent(minHeight: number | undefined): void {
+    this.setMinHeight(minHeight !== undefined ? `${minHeight}%` : undefined);
   }
 
   /**
    * Sets the maximum height.
    * @param maxHeight - The maximum height.
    */
-  setMaxHeight(maxHeight: number | string) {
-    this.updateStyle(
-      (s) =>
-        (s.max_size = { ...s.max_size, height: this.parseValue(maxHeight) }),
-    );
+  setMaxHeight(maxHeight: number | `${number}%` | undefined): void {
+    this.updateStyle((s) => {
+      const val =
+        maxHeight === undefined
+          ? "Auto"
+          : typeof maxHeight === "number"
+            ? { Length: maxHeight }
+            : { Percent: parseFloat(maxHeight) / 100 };
+      s.max_size = { ...s.max_size, height: val };
+    });
   }
+
   /**
    * Sets the maximum height as a percentage.
    * @param maxHeight - The percentage value.
    */
-  setMaxHeightPercent(maxHeight: number) {
-    this.setMaxHeight(`${maxHeight}%`);
+  setMaxHeightPercent(maxHeight: number | undefined): void {
+    this.setMaxHeight(maxHeight !== undefined ? `${maxHeight}%` : undefined);
   }
 
   /**
    * Sets the aspect ratio.
    * @param aspectRatio - The aspect ratio (width / height).
    */
-  setAspectRatio(aspectRatio: number) {
+  setAspectRatio(aspectRatio: number | undefined): void {
     this.updateStyle((s) => {
       s.aspect_ratio = aspectRatio;
     });
