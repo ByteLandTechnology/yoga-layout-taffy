@@ -20,9 +20,11 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "vitest": "^4.0.16"
   }
 }
